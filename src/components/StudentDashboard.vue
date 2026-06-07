@@ -50,8 +50,9 @@ const loadVocabs = async (category) => {
   } else {
     const fileNamePart = VOCAB_CATEGORY_FILE_MAP[category]
     const fileName = `${fileNamePart}.csv`
-    // 使用 import.meta.env.BASE_URL 自動帶入 vite.config.js 中的 base 路徑
-    const fetchUrl = `${import.meta.env.BASE_URL}${fileName}`
+    // 使用 import.meta.env.BASE_URL 自動帶入路徑，並確保斜線連接正確
+    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '')
+    const fetchUrl = `${baseUrl}/${fileName}`
     
     console.log(`[Vocab Debug] 點選類別: ${category}, 請求路徑: ${fetchUrl}`)
     

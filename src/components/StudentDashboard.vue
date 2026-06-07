@@ -29,6 +29,9 @@ const displayVocabs = ref([])
 const vocabShowMode = ref('EN') // EN: 先看英文, CN: 先看中文
 const flippedCards = ref(new Set())
 
+// 單字分類與檔案名稱的對照表：1:幼稚園, 2:國小, 3:國中, 4:高中, 5:大學
+const VOCAB_CATEGORY_FILE_MAP = { K: '1', E: '2', J: '3', S: '4', U: '5' }
+
 const loadVocabs = async (category) => {
   currentVocabCategory.value = category
   flippedCards.value.clear()
@@ -45,8 +48,7 @@ const loadVocabs = async (category) => {
       if (result.status === 'success') pool = result.vocabs || []
     } catch (e) { console.error(e) }
   } else {
-    const categoryMap = { K: '1', E: '2', J: '3', S: '4', U: '5' }
-    const fileNamePart = categoryMap[category]
+    const fileNamePart = VOCAB_CATEGORY_FILE_MAP[category]
     const fileName = `${fileNamePart}.csv`
     // 使用 import.meta.env.BASE_URL 自動帶入 vite.config.js 中的 base 路徑
     const fetchUrl = `${import.meta.env.BASE_URL}${fileName}`

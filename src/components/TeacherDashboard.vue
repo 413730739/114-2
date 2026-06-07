@@ -55,11 +55,6 @@ const previewBlocks = computed(() => {
     if (rawValue.startsWith('data:') || block.type === 'video') {
       processedUrl = rawValue
     } else {
-      if (rawValue.startsWith('<iframe')) {
-        const srcMatch = rawValue.match(/src=["']([^"']+)["']/)
-        if (srcMatch) rawValue = srcMatch[1]
-      }
-
       // YouTube 連結處理
       if (block.type === 'youtube') {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -67,34 +62,37 @@ const previewBlocks = computed(() => {
         processedUrl = (match && match[2] && match[2].length === 11)
           ? `https://www.youtube.com/embed/${match[2]}` 
           : rawValue
-      }
-      // Google Drive / Docs / Slides 連結處理
-      else if (block.type === 'embed' && rawValue.includes('google.com')) {
-        let url = rawValue
-        // 處理 drive.google.com/open?id=... 格式
-        if (url.includes('drive.google.com/open?id=')) {
-          const id = url.split('id=')[1].split('&')[0];
-          processedUrl = `https://drive.google.com/file/d/${id}/preview`;
-        } else if (url.includes('/d/e/')) {
-          // 「發佈到網路」的連結，最穩定
-          processedUrl = url
-        } else if (url.includes('drive.google.com/file/d/')) {
-          // 一般雲端硬碟檔案連結，轉換為 preview 模式
-          processedUrl = url.replace(/\/view.*$/, '').replace(/\/edit.*$/, '').replace(/\/$/, '') + '/preview'
-        } else {
-          url = url.split('?')[0].split('#')[0]
-          if (url.includes('/presentation/d/')) {
-            processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/embed'
-          } else if (url.includes('/spreadsheets/d/')) {
-            processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview?widget=false&headers=false&chrome=false'
-          } else if (url.includes('/document/d/') || url.includes('/file/d/')) {
-            processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview'
-          } else {
-            processedUrl = url
-          }
-        }
       } else {
-        processedUrl = rawValue
+        if (rawValue.startsWith('<iframe')) {
+          const srcMatch = rawValue.match(/src=["']([^"']+)["']/)
+          if (srcMatch) rawValue = srcMatch[1]
+        }
+
+        // Google Drive / Docs / Slides 連結處理
+        if (block.type === 'embed' && rawValue.includes('google.com')) {
+          let url = rawValue
+          if (url.includes('drive.google.com/open?id=')) {
+            const id = url.split('id=')[1].split('&')[0];
+            processedUrl = `https://drive.google.com/file/d/${id}/preview`;
+          } else if (url.includes('/d/e/')) {
+            processedUrl = url
+          } else if (url.includes('drive.google.com/file/d/')) {
+            processedUrl = url.replace(/\/view.*$/, '').replace(/\/edit.*$/, '').replace(/\/$/, '') + '/preview'
+          } else {
+            url = url.split('?')[0].split('#')[0]
+            if (url.includes('/presentation/d/')) {
+              processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/embed'
+            } else if (url.includes('/spreadsheets/d/')) {
+              processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview?widget=false&headers=false&chrome=false'
+            } else if (url.includes('/document/d/') || url.includes('/file/d/')) {
+              processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview'
+            } else {
+              processedUrl = url
+            }
+          }
+        } else {
+          processedUrl = rawValue
+        }
       }
     }
     return { ...block, processedUrl }

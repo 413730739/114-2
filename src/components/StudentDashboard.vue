@@ -5,7 +5,7 @@ const props = defineProps(['courseCode', 'studentName'])
 const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
 
 // 自動掃描專案根目錄下所有的 CSV 或 VSV 檔案內容 (使用括號擴展支援多副檔名)
-const vocabModules = import.meta.glob('../assets/單字-*.{csv,vsv}', { query: '?raw', import: 'default' })
+const vocabModules = import.meta.glob('../assets/單字-*.{csv,vsv}', { query: '?raw', import: 'default', eager: true })
 
 const courseData = ref({ content: '單元一', questions: [] })
 const units = ref([{ title: '單元一', blocks: [] }]) // Initialize with a default unit
@@ -60,9 +60,8 @@ const loadVocabs = async (category) => {
     console.log(`[Vocab Debug] 找到的對應路徑:`, targetKey || '無 (請檢查 src/assets 是否有該檔案)')
     
     try {
-      const loader = targetKey ? vocabModules[targetKey] : null
-      if (loader) {
-        const text = await loader() 
+      const text = targetKey ? vocabModules[targetKey] : null
+      if (text) {
         const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
         
         pool = lines
@@ -142,47 +141,43 @@ const parsedContentBlocks = computed(() => {
     if (rawValue.startsWith('data:') || block.type === 'video') {
       processedUrl = rawValue;
     } else {
-      // 2. 如果使用者貼上的是整段 iframe 標籤，嘗試從中提取 src 網址
-      if (rawValue.startsWith('<iframe')) {
-        const srcMatch = rawValue.match(/src=["']([^"']+)["']/);
-        if (srcMatch) rawValue = srcMatch[1];
-      }
-
-      // 3. YouTube 連結處理
       if (block.type === 'youtube') {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
         const match = rawValue.match(regExp);
         processedUrl = (match && match[2].length === 11)
           ? `https://www.youtube.com/embed/${match[2]}`
           : rawValue;
-      }
-      // 4. Google Drive / Docs / Slides 連結處理
-      else if (block.type === 'embed' && rawValue.includes('google.com')) {
-        let url = rawValue;
-        // 處理 drive.google.com/open?id=... 格式
-        if (url.includes('drive.google.com/open?id=')) {
-          const id = url.split('id=')[1].split('&')[0];
-          processedUrl = `https://drive.google.com/file/d/${id}/preview`;
-        } else if (url.includes('/d/e/')) {
-          // 「發佈到網路」的連結，最穩定
-          processedUrl = url;
-        } else if (url.includes('drive.google.com/file/d/')) {
-          // 一般雲端硬碟檔案連結，轉換為 preview 模式
-          processedUrl = url.replace(/\/view.*$/, '').replace(/\/edit.*$/, '').replace(/\/$/, '') + '/preview';
-        } else {
-          url = url.split('?')[0].split('#')[0];
-          if (url.includes('/presentation/d/')) {
-            processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/embed';
-          } else if (url.includes('/spreadsheets/d/')) {
-            processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview?widget=false&headers=false&chrome=false';
-          } else if (url.includes('/document/d/') || url.includes('/file/d/')) {
-            processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview';
-          } else {
-            processedUrl = url;
-          }
-        }
       } else {
-        processedUrl = rawValue;
+        if (rawValue.startsWith('<iframe')) {
+          const srcMatch = rawValue.match(/src=["']([^"']+)["']/);
+          if (srcMatch) rawValue = srcMatch[1];
+        }
+
+        // Google Drive / Docs / Slides 連結處理
+        if (block.type === 'embed' && rawValue.includes('google.com')) {
+          let url = rawValue;
+          if (url.includes('drive.google.com/open?id=')) {
+            const id = url.split('id=')[1].split('&')[0];
+            processedUrl = `https://drive.google.com/file/d/${id}/preview`;
+          } else if (url.includes('/d/e/')) {
+            processedUrl = url;
+          } else if (url.includes('drive.google.com/file/d/')) {
+            processedUrl = url.replace(/\/view.*$/, '').replace(/\/edit.*$/, '').replace(/\/$/, '') + '/preview';
+          } else {
+            url = url.split('?')[0].split('#')[0];
+            if (url.includes('/presentation/d/')) {
+              processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/embed';
+            } else if (url.includes('/spreadsheets/d/')) {
+              processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview?widget=false&headers=false&chrome=false';
+            } else if (url.includes('/document/d/') || url.includes('/file/d/')) {
+              processedUrl = url.replace(/\/edit.*$/, '').replace(/\/view.*$/, '').replace(/\/$/, '') + '/preview';
+            } else {
+              processedUrl = url;
+            }
+          }
+        } else {
+          processedUrl = rawValue;
+        }
       }
     }
     return { ...block, processedUrl, fontSize: block.fontSize || '20px', align: block.align || 'left' };

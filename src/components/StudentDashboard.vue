@@ -5,7 +5,7 @@ const props = defineProps(['courseCode', 'studentName'])
 const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
 
 // 自動掃描專案根目錄下所有的 CSV 或 VSV 檔案內容 (使用括號擴展支援多副檔名)
-const vocabModules = import.meta.glob('../assets/單字-*.{csv,CSV,vsv,VSV}', { query: '?raw', import: 'default', eager: true })
+const vocabModules = import.meta.glob('../assets/*.{csv,CSV,vsv,VSV}', { query: '?raw', import: 'default', eager: true })
 
 const courseData = ref({ content: '單元一', questions: [] })
 const units = ref([{ title: '單元一', blocks: [] }]) // Initialize with a default unit
@@ -48,14 +48,13 @@ const loadVocabs = async (category) => {
       if (result.status === 'success') pool = result.vocabs || []
     } catch (e) { console.error(e) }
   } else {
-    const categoryMap = { K: '幼稚園', E: '國小', J: '國中', S: '高中', U: '大學' }
-    const fileNamePart = `單字-${categoryMap[category]}`
+    const categoryMap = { K: '1', E: '2', J: '3', S: '4', U: '5' }
+    const fileNamePart = categoryMap[category]
     
     // 尋找檔名符合的 Key，增加忽略大小寫匹配，並解碼 URL 且統一 Unicode 正規化 (NFC) 避免環境造成的亂碼問題
     const targetKey = Object.keys(vocabModules).find(key => {
       const decodedKey = decodeURIComponent(key).toLowerCase().normalize('NFC')
-      const searchPart = fileNamePart.toLowerCase().normalize('NFC')
-      return decodedKey.includes(searchPart)
+      return decodedKey.endsWith(`/${fileNamePart}.csv`.toLowerCase()) || decodedKey.endsWith(`/${fileNamePart}.vsv`.toLowerCase())
     })
     
     console.log(`[Vocab Debug] 正在搜尋類別: ${category}, 關鍵字: ${fileNamePart}`)

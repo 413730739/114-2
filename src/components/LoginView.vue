@@ -6,6 +6,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1
 
 const activeRole = ref('student') // 預設為學生
 const loading = ref(false)
+const showDropdown = ref(false)
+const presets = ['認識ABC', '日常英文', '英文歌學英文']
 
 const formData = reactive({
   email: '',
@@ -13,8 +15,21 @@ const formData = reactive({
   courseCode: ''
 })
 
+const selectPreset = (code) => {
+  formData.courseCode = code
+  showDropdown.value = false
+}
+
 const handleLogin = async () => {
   if (!formData.courseCode) return alert('請輸入課程代碼')
+
+  // 檢查特定課程的教師權限
+  if (activeRole.value === 'teacher' && presets.includes(formData.courseCode)) {
+    if (formData.email !== 'mia998508mia@gmail.com') {
+      alert('您沒有此課程的編輯權限')
+      return
+    }
+  }
   
   loading.value = true
   try {
@@ -52,6 +67,16 @@ const handleLogin = async () => {
 
 <template>
   <div class="login-screen">
+    <div class="preset-container">
+      <button type="button" class="preset-toggle" @click="showDropdown = !showDropdown">
+        課程推薦 ▾
+      </button>
+      <div v-if="showDropdown" class="preset-menu">
+        <div v-for="item in presets" :key="item" @click="selectPreset(item)" class="preset-item">
+          {{ item }}
+        </div>
+      </div>
+    </div>
     <div class="login-box">
       <div class="login-header">
         <h1>英文課程系統</h1>
@@ -202,5 +227,42 @@ h1 {
     font-size: 1.5rem;
     margin-bottom: 20px;
   }
+}
+
+.preset-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+}
+.preset-toggle {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 8px 15px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.preset-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius-sm);
+  margin-top: 5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-width: 150px;
+}
+.preset-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  color: var(--text-main);
+}
+.preset-item:hover {
+  background: var(--surface-soft);
 }
 </style>

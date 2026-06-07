@@ -51,13 +51,13 @@ const loadVocabs = async (category) => {
     const categoryMap = { K: '1', E: '2', J: '3', S: '4', U: '5' }
     const fileNamePart = categoryMap[category]
     
-    // 尋找檔名符合的 Key，增加忽略大小寫匹配，並解碼 URL 且統一 Unicode 正規化 (NFC) 避免環境造成的亂碼問題
+    // 尋找檔名符合的 Key，確保數字檔名能精確匹配
     const targetKey = Object.keys(vocabModules).find(key => {
       const decodedKey = decodeURIComponent(key).toLowerCase().normalize('NFC')
       return decodedKey.endsWith(`/${fileNamePart}.csv`.toLowerCase()) || decodedKey.endsWith(`/${fileNamePart}.vsv`.toLowerCase())
     })
     
-    console.log(`[Vocab Debug] 正在搜尋類別: ${category}, 關鍵字: ${fileNamePart}`)
+    console.log(`[Vocab Debug] 點選類別: ${category}, 預計搜尋檔名: ${fileNamePart}.csv`)
     console.log(`[Vocab Debug] 找到的對應路徑:`, targetKey || '無 (請檢查 src/assets 是否有該檔案)')
     
     try {

@@ -1,3 +1,4 @@
+// c:\Users\user\OneDrive - 淡江大學\文件\互動程式設計\期末\vite.config.js
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 

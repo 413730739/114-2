@@ -4,6 +4,9 @@ import { ref, onMounted, computed, watch } from 'vue'
 const props = defineProps(['courseCode', 'studentName'])
 const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
 
+// 自動掃描專案根目錄下所有的 CSV 或 VSV 檔案內容 (使用括號擴展支援多副檔名)
+const vocabModules = import.meta.glob('../assets/單字-*.{csv,vsv}', { query: '?raw', import: 'default' })
+
 const courseData = ref({ content: '單元一', questions: [] })
 const units = ref([{ title: '單元一', blocks: [] }]) // Initialize with a default unit
 const selectedUnitIndex = ref(0)
@@ -45,33 +48,42 @@ const loadVocabs = async (category) => {
       if (result.status === 'success') pool = result.vocabs || []
     } catch (e) { console.error(e) }
   } else {
-    // 讀取 local CSV 檔案，檔名需符合格式：單字-學制.csv
     const categoryMap = { K: '幼稚園', E: '國小', J: '國中', S: '高中', U: '大學' }
+    const fileNamePart = `單字-${categoryMap[category]}`
+    
+    // 尋找檔名符合的 Key，增加忽略大小寫匹配
+    const targetKey = Object.keys(vocabModules).find(key => 
+      key.toLowerCase().includes(fileNamePart.toLowerCase())
+    )
+    
+    console.log(`[Vocab Debug] 正在搜尋類別: ${category}, 關鍵字: ${fileNamePart}`)
+    console.log(`[Vocab Debug] 找到的對應路徑:`, targetKey || '無 (請檢查 src/assets 是否有該檔案)')
+    
     try {
-      const response = await fetch(`./單字-${categoryMap[category]}.csv`)
-      if (response.ok) {
-        const text = await response.text()
-        // 將 CSV 文字按行分割，並過濾掉空白行
-        const rows = text.split('\n').filter(row => row.trim() !== '')
-        // 略過第一行標題，解析內容
-        pool = rows.slice(1).map(row => {
-          const cols = row.split(',')
-          return {
-            word: cols[0]?.trim(),
-            pos: cols[1]?.trim(),
-            meaning: cols[2]?.trim()
-          }
-        }).filter(item => item.word && item.meaning)
+      const loader = targetKey ? vocabModules[targetKey] : null
+      if (loader) {
+        const text = await loader() 
+        const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
+        
+        pool = lines
+          .filter(row => row.trim().length > 0) // 移除空行
+          .slice(1) // 跳過標題列
+          .map(row => {
+            // 自動支援逗號或分號分隔 (部分 Excel 匯出會用分號)
+            const cols = row.includes(',') ? row.split(',') : row.split(';')
+            return {
+              word: (cols[0] || '').trim(),
+              pos: (cols[1] || 'n.').trim(),
+              meaning: (cols[2] || '').trim()
+            }
+          }).filter(item => item.word && item.meaning)
+      } else {
+        console.error(`[Vocab Error] 無法從模組清單中找到檔案，請確認檔案位於 src/assets/ 並重啟 Vite`)
       }
-      else {
-        // 暫時 Mock 資料供測試
-        pool = Array.from({length: 20}, (_, i) => ({
-          word: `${category} Word ${i+1}`,
-          pos: 'n.',
-          meaning: `意思 ${i+1}`
-        }))
-      }
-    } catch (e) { pool = [] }
+    } catch (e) { 
+      console.error(`解析 CSV 發生錯誤:`, e)
+      pool = [] 
+    }
   }
 
   displayVocabs.value = shuffleArray(pool).slice(0, 12)
@@ -701,7 +713,10 @@ const viewHistoryFromChart = (point) => {
   activeTab.value = 'history'
 }
 
-onMounted(fetchCourseData)
+onMounted(() => {
+  fetchCourseData()
+  console.log('[System Check] 所有可讀取的單字檔模組:', Object.keys(vocabModules))
+})
 </script>
 
 <template>

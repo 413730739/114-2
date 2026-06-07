@@ -4,9 +4,6 @@ import { ref, onMounted, computed, watch } from 'vue'
 const props = defineProps(['courseCode', 'studentName'])
 const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
 
-// 自動掃描專案根目錄下所有的 CSV 或 VSV 檔案內容 (使用括號擴展支援多副檔名)
-const vocabModules = import.meta.glob('../assets/*.{csv,CSV,vsv,VSV}', { query: '?raw', import: 'default', eager: true })
-
 const courseData = ref({ content: '單元一', questions: [] })
 const units = ref([{ title: '單元一', blocks: [] }]) // Initialize with a default unit
 const selectedUnitIndex = ref(0)
@@ -50,19 +47,16 @@ const loadVocabs = async (category) => {
   } else {
     const categoryMap = { K: '1', E: '2', J: '3', S: '4', U: '5' }
     const fileNamePart = categoryMap[category]
+    const fileName = `${fileNamePart}.csv`
+    // 使用 import.meta.env.BASE_URL 自動帶入 vite.config.js 中的 base 路徑
+    const fetchUrl = `${import.meta.env.BASE_URL}${fileName}`
     
-    // 尋找檔名符合的 Key，確保數字檔名能精確匹配
-    const targetKey = Object.keys(vocabModules).find(key => {
-      const decodedKey = decodeURIComponent(key).toLowerCase().normalize('NFC')
-      return decodedKey.endsWith(`/${fileNamePart}.csv`.toLowerCase()) || decodedKey.endsWith(`/${fileNamePart}.vsv`.toLowerCase())
-    })
-    
-    console.log(`[Vocab Debug] 點選類別: ${category}, 預計搜尋檔名: ${fileNamePart}.csv`)
-    console.log(`[Vocab Debug] 找到的對應路徑:`, targetKey || '無 (請檢查 src/assets 是否有該檔案)')
+    console.log(`[Vocab Debug] 點選類別: ${category}, 請求路徑: ${fetchUrl}`)
     
     try {
-      const text = targetKey ? vocabModules[targetKey] : null
-      if (text) {
+      const response = await fetch(fetchUrl)
+      if (response.ok) {
+        const text = await response.text()
         const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
         
         pool = lines
@@ -78,7 +72,7 @@ const loadVocabs = async (category) => {
             }
           }).filter(item => item.word && item.meaning)
       } else {
-        console.error(`[Vocab Error] 無法從模組清單中找到檔案，請確認檔案位於 src/assets/ 並重啟 Vite`)
+        console.error(`[Vocab Error] 載入失敗，請確認檔案是否存在於 public/${fileName}`)
       }
     } catch (e) { 
       console.error(`解析 CSV 發生錯誤:`, e)
@@ -711,7 +705,6 @@ const viewHistoryFromChart = (point) => {
 
 onMounted(() => {
   fetchCourseData()
-  console.log('[System Check] 所有可讀取的單字檔模組:', Object.keys(vocabModules))
 })
 </script>
 

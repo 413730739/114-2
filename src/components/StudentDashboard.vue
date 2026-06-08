@@ -716,10 +716,10 @@ onMounted(() => {
     <div class="tab-menu">
       <button :class="{ active: activeTab === 'content' }" @click="activeTab = 'content'">課程內容</button>
       <button :class="{ active: activeTab === 'vocab' }" @click="activeTab = 'vocab'">單字學習</button>
-      <button :class="{ active: activeTab === 'practice' }" @click="activeTab = 'practice'">練習題</button>
       <button :class="{ active: activeTab === 'quiz' }" @click="activeTab = 'quiz'">測驗題</button>
       <button :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">測驗歷史</button>
-      <button @click="openTranslator" class="translate-btn">開啟 Google 翻譯</button>
+      <button :class="{ active: activeTab === 'practice' }" @click="activeTab = 'practice'">練習題</button>
+      <button @click="openTranslator" class="translate-btn"> Google 翻譯</button>
     </div>
 
     <div class="dashboard-grid">

@@ -695,8 +695,8 @@ watch(activeTab, (newTab) => {
     <div class="tab-menu">
       <button :class="{ active: activeTab === 'content' }" @click="activeTab = 'content'">編輯課程</button>
       <button :class="{ active: activeTab === 'vocab' }" @click="activeTab = 'vocab'">單字管理</button>
-      <button :class="{ active: activeTab === 'grades' }" @click="activeTab = 'grades'">成績</button>
       <button :class="{ active: activeTab === 'quiz' }" @click="activeTab = 'quiz'">測驗題管理</button>
+      <button :class="{ active: activeTab === 'grades' }" @click="activeTab = 'grades'">成績</button>
     </div>
 
     <section class="editor-section">

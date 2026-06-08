@@ -11,6 +11,7 @@ const selectedUnitIndex = ref(0)
 const activeTab = ref('content') // content, vocab, practice, quiz, history
 const isLoading = ref(true)
 const isFetching = ref(false)
+const showPracticeNotice = ref(false)
 const fetchError = ref(false)
 
 const quizSubmitted = ref(false) // 追蹤測驗是否已提交
@@ -718,7 +719,7 @@ onMounted(() => {
       <button :class="{ active: activeTab === 'vocab' }" @click="activeTab = 'vocab'">單字學習</button>
       <button :class="{ active: activeTab === 'quiz' }" @click="activeTab = 'quiz'">測驗題</button>
       <button :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">測驗歷史</button>
-      <button :class="{ active: activeTab === 'practice' }" @click="activeTab = 'practice'">練習題</button>
+      <button :class="{ active: activeTab === 'practice' }" @click="activeTab = 'practice'; showPracticeNotice = true">練習題</button>
       <button @click="openTranslator" class="translate-btn"> Google 翻譯</button>
     </div>
 
@@ -1118,6 +1119,14 @@ onMounted(() => {
           </div>
             </div>
       </section>
+    </div>
+
+    <!-- 練習題提示彈窗 -->
+    <div v-if="showPracticeNotice" class="modal-overlay">
+      <div class="modal-content notice-modal">
+        <p>本練習與課程無關</p>
+        <button @click="showPracticeNotice = false" class="confirm-btn">確定</button>
+      </div>
     </div>
   </div>
 </template>
@@ -1714,4 +1723,36 @@ onMounted(() => {
 
 @media (max-width: 992px) { .vocab-card-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 600px) { .vocab-card-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* 練習題提示彈窗樣式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+.notice-modal {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+.confirm-btn {
+  margin-top: 20px;
+  padding: 10px 30px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
 </style>

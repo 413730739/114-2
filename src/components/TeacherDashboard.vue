@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed, nextTick } from 'vue'
 
 const props = defineProps(['courseCode'])
-const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbzyYV47bkxcA6ZOBxR0sXMIhfFR7sQWy3qeFKufzPki-DsfiXhZsWZ5OUo5_wLqmzyR/exec'
 
 // 確保 units 與 activeUnitIndex 在最上方正確定義並初始化
 const units = ref([{ title: '單元一', blocks: [{ type: 'text', value: '', fontSize: '20px', align: 'left' }] }])
@@ -305,6 +305,8 @@ const fetchQuestions = async () => {
     }
   } catch (e) {
     console.error("無法獲取題目", e)
+  } finally {
+    isFetching.value = false // 重要：重置旗標，否則清單將無法再次更新
   }
 }
 
@@ -364,16 +366,16 @@ const uploadContent = async (type) => {
           .filter(text => text && typeof text === 'string' && text.trim() !== '')
           
         if (answers.length < 2) return alert('多選題請確保至少有兩個選中的選項填寫了內容')
-        finalAnswer = answers.join(',')
+        finalAnswer = answers.join('|||')
       }
 
       // 如果是是非或選擇題，處理選項
       let finalOptions = ''
       if (['SINGLE', 'MULTI', 'TF'].includes(q.qType)) {
         if (q.qType === 'TF') {
-          finalOptions = 'True,False'
+          finalOptions = 'True|||False'
         } else {
-          finalOptions = q.options.filter(opt => opt.trim() !== '').join(',')
+          finalOptions = q.options.filter(opt => opt.trim() !== '').join('|||')
         }
       }
 
@@ -412,6 +414,25 @@ const uploadContent = async (type) => {
     const result = await response.json()
     console.log("GAS 上傳回應:", result) // 加入日誌檢查上傳結果
     if (result.status === 'success') {
+      // --- 即時更新本地清單 ---
+      if (type !== 'TEXT' && payload.question) {
+        const qData = {
+          ...payload.question,
+          // 確保欄位型態一致，避免渲染時報錯
+          q: String(payload.question.q),
+          a: String(payload.question.a),
+          options: String(payload.question.options)
+        }
+
+        if (editingId.value) {
+          // 編輯模式：取代舊題目
+          const idx = questionsList.value.findIndex(q => q.id === editingId.value)
+          if (idx !== -1) questionsList.value[idx] = qData
+        } else {
+          // 新增模式：推入清單頂端或末端
+          questionsList.value.push(qData)
+        }
+      }
       alert(editingId.value ? '題目已成功更新！' : '內容已成功發佈！')
     } else {
       throw new Error(result.message || '後端同步失敗')
@@ -425,7 +446,8 @@ const uploadContent = async (type) => {
         qType: 'SINGLE', 
         type: 'QUIZ',
         options: ['', ''], 
-        multiIndices: [] 
+        multiIndices: [],
+        points: 10
       }
       fetchQuestions() // 刷新題目列表，無論新增或編輯
     }
@@ -488,10 +510,13 @@ const removeContentBlock = (index) => {
 
 
 // 載入題目進入編輯模式
-const editQuestion = (q) => {
+const editQuestion = async (q) => {
   editingId.value = q.id
   activeTab.value = 'quiz' // 切換到測驗題管理頁籤
   
+  await nextTick()
+  window.scrollTo({ top: 0, behavior: 'auto' })
+
   newQuestion.value.q = q.q
   newQuestion.value.qType = q.qType
   newQuestion.value.type = q.type // 保存原始類別，避免編輯後類別跳掉
@@ -499,12 +524,12 @@ const editQuestion = (q) => {
   
   // 處理選項與答案的對應
   if (['SINGLE', 'MULTI', 'TF'].includes(q.qType)) {
-    const opts = q.options ? String(q.options).split(',') : []
+    const opts = q.options ? String(q.options).split('|||') : []
     newQuestion.value.options = opts
     if (q.qType === 'SINGLE') {
       newQuestion.value.a = opts.findIndex(opt => opt.trim() === String(q.a).trim())
     } else if (q.qType === 'MULTI') {
-      const answers = q.a ? String(q.a).split(',').map(s => s.trim()) : []
+      const answers = q.a ? String(q.a).split('|||').map(s => s.trim()) : []
       newQuestion.value.multiIndices = answers
         .map(ans => opts.findIndex(opt => opt.trim() === ans))
         .filter(idx => idx !== -1)
@@ -519,7 +544,7 @@ const editQuestion = (q) => {
 // 判斷該選項是否為正確答案
 const isOptionCorrect = (opt, correctAns) => {
   if (!correctAns) return false
-  const normalizedCorrect = String(correctAns).split(',').map(s => s.trim().toLowerCase())
+  const normalizedCorrect = String(correctAns).split('|||').map(s => s.trim().toLowerCase())
   const normalizedOpt = String(opt).trim().toLowerCase()
   return normalizedCorrect.includes(normalizedOpt)
 }
@@ -663,8 +688,8 @@ const deleteQuestion = async (id) => {
 
     const result = await response.json()
     if (result.status === 'success') {
-      alert('刪除成功')
-      fetchQuestions()
+      // 立即從本地列表移除，不需要等待 fetchQuestions 回傳，達到「馬上消失」的效果
+      questionsList.value = questionsList.value.filter(q => q.id !== id)
     } else {
       alert('刪除失敗：' + (result.message || '找不到該題目 ID'))
     }
@@ -936,7 +961,7 @@ watch(activeTab, (newTab) => {
               <p class="q-text"><strong>Q:</strong> {{ answer.q }}</p>
               
               <div v-if="['SINGLE', 'MULTI', 'TF'].includes(answer.qType) && answer.options" class="options-list-preview">
-                <template v-for="(opt, idx) in String(answer.options).split(',')" :key="idx">
+                <template v-for="(opt, idx) in String(answer.options).split('|||')" :key="idx">
                   <div v-if="opt.trim()" class="opt-preview-item" :class="{ 'is-correct-answer': isOptionCorrect(opt, answer.correctAnswer) }">
                     <span class="opt-text">{{ opt.trim() }}</span>
                   </div>
@@ -971,7 +996,7 @@ watch(activeTab, (newTab) => {
           
           <!-- 確保選項顯示為獨立列表，防止文字擠在一起 -->
           <div v-if="['SINGLE', 'MULTI', 'TF'].includes(q.qType) && q.options" class="options-list-preview">
-            <template v-for="(opt, idx) in String(q.options).split(',')" :key="idx">
+            <template v-for="(opt, idx) in String(q.options).split('|||')" :key="idx">
               <div v-if="opt.trim()" class="opt-preview-item" :class="{ 'is-correct-answer': isOptionCorrect(opt, q.a) }">
                 <span class="opt-text">{{ opt.trim() }}</span>
               </div>

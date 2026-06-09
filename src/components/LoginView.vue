@@ -2,7 +2,7 @@
 import { ref, reactive } from 'vue'
 
 const emit = defineEmits(['login-success'])
-const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbzyYV47bkxcA6ZOBxR0sXMIhfFR7sQWy3qeFKufzPki-DsfiXhZsWZ5OUo5_wLqmzyR/exec'
 
 const activeRole = ref('student') // 預設為學生
 const loading = ref(false)

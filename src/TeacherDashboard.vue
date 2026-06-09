@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 
 const props = defineProps(['courseCode'])
 const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
@@ -154,6 +154,8 @@ const fetchQuestions = async () => {
     }
   } catch (e) {
     console.error("無法獲取題目", e)
+  } finally {
+    isFetching.value = false // 確保在完成或失敗後重置狀態
   }
 }
 
@@ -213,16 +215,16 @@ const uploadContent = async (type) => {
           .filter(text => text && typeof text === 'string' && text.trim() !== '')
           
         if (answers.length < 2) return alert('多選題請確保至少有兩個選中的選項填寫了內容')
-        finalAnswer = answers.join(',')
+        finalAnswer = answers.join('|||')
       }
 
       // 如果是是非或選擇題，處理選項
       let finalOptions = ''
       if (['SINGLE', 'MULTI', 'TF'].includes(q.qType)) {
         if (q.qType === 'TF') {
-          finalOptions = 'True,False'
+          finalOptions = 'True|||False'
         } else {
-          finalOptions = q.options.filter(opt => opt.trim() !== '').join(',')
+          finalOptions = q.options.filter(opt => opt.trim() !== '').join('|||')
         }
       }
 
@@ -237,7 +239,8 @@ const uploadContent = async (type) => {
           a: finalAnswer,
           qType: q.qType,
           options: finalOptions,
-          points: q.points
+          points: q.points,
+          type: q.type // 確保保留原始的練習或測驗分類
         }
       } else {
         payload.question = { 
@@ -245,7 +248,7 @@ const uploadContent = async (type) => {
         a: finalAnswer,
         qType: q.qType,
         options: finalOptions,
-        type: type,
+        type: type, // 這裡會是傳入的 'QUIZ' 或 'PRACTICE'
         id: 'q_' + Date.now(),
         points: q.points // 傳送配分到後端
       }
@@ -274,7 +277,8 @@ const uploadContent = async (type) => {
         qType: 'SINGLE', 
         type: 'QUIZ',
         options: ['', ''], 
-        multiIndices: [] 
+        multiIndices: [],
+        points: 10 // 重置預設配分
       }
       fetchQuestions() // 刷新題目列表，無論新增或編輯
     }
@@ -333,10 +337,17 @@ const removeContentBlock = (index) => {
 
 
 // 載入題目進入編輯模式
-const editQuestion = (q) => {
+const editQuestion = async (q) => {
   editingId.value = q.id
   activeTab.value = 'quiz' // 切換到測驗題管理頁籤
   
+  // 確保畫面已切換到測驗分頁後再執行即時捲動
+  await nextTick()
+  window.scrollTo({
+    top: 0,
+    behavior: 'auto' // 使用 auto 達到「直接跳轉」的效果，若喜歡平滑感可改回 smooth
+  })
+
   newQuestion.value.q = q.q
   newQuestion.value.qType = q.qType
   newQuestion.value.type = q.type // 保存原始類別，避免編輯後類別跳掉
@@ -344,12 +355,12 @@ const editQuestion = (q) => {
   
   // 處理選項與答案的對應
   if (['SINGLE', 'MULTI', 'TF'].includes(q.qType)) {
-    const opts = q.options ? String(q.options).split(',') : []
+    const opts = q.options ? String(q.options).split('|||') : []
     newQuestion.value.options = opts
     if (q.qType === 'SINGLE') {
       newQuestion.value.a = opts.findIndex(opt => opt.trim() === String(q.a).trim())
     } else if (q.qType === 'MULTI') {
-      const answers = q.a ? String(q.a).split(',').map(s => s.trim()) : []
+      const answers = q.a ? String(q.a).split('|||').map(s => s.trim()) : []
       newQuestion.value.multiIndices = answers
         .map(ans => opts.findIndex(opt => opt.trim() === ans))
         .filter(idx => idx !== -1)
@@ -364,13 +375,13 @@ const editQuestion = (q) => {
 // 判斷該選項是否為正確答案
 const isOptionCorrect = (opt, correctAns) => {
   if (!correctAns) return false
-  const correctList = String(correctAns).split(',').map(s => s.trim())
+  const correctList = String(correctAns).split('|||').map(s => s.trim())
   return correctList.includes(opt.trim())
 }
 
 const cancelEdit = () => {
   editingId.value = null
-  newQuestion.value = { q: '', a: null, qType: 'SINGLE', options: ['', ''], multiIndices: [] }
+  newQuestion.value = { q: '', a: null, qType: 'SINGLE', type: 'QUIZ', options: ['', ''], multiIndices: [], points: 10 }
 }
 
 // 新增：刪除單筆成績紀錄，修復 "_ctx.deleteSingleGrade is not a function" 錯誤
@@ -507,8 +518,8 @@ const deleteQuestion = async (id) => {
 
     const result = await response.json()
     if (result.status === 'success') {
-      alert('刪除成功')
-      fetchQuestions()
+      // 立即從本地列表移除，不需要等待 fetchQuestions 回傳，達到「馬上消失」的效果
+      questionsList.value = questionsList.value.filter(q => q.id !== id)
     } else {
       alert('刪除失敗：' + (result.message || '找不到該題目 ID'))
     }
@@ -536,7 +547,6 @@ watch(activeTab, (newTab) => {
       <button :class="{ active: activeTab === 'content' }" @click="activeTab = 'content'">📘 編輯課程</button>
       <button :class="{ active: activeTab === 'quiz' }" @click="activeTab = 'quiz'">🎓 測驗題管理</button>
       <button :class="{ active: activeTab === 'grades' }" @click="activeTab = 'grades'">📊 成績</button>
-      <button :class="{ active: activeTab === 'quiz' }" @click="activeTab = 'quiz'">🎓 測驗題管理</button>
     </div>
 
     <section class="editor-section">
@@ -705,7 +715,7 @@ watch(activeTab, (newTab) => {
               <p class="q-text"><strong>Q:</strong> {{ answer.q }}</p>
               
               <div v-if="['SINGLE', 'MULTI', 'TF'].includes(answer.qType) && answer.options" class="options-list-preview">
-                <template v-for="(opt, idx) in String(answer.options).split(',')" :key="idx">
+                <template v-for="(opt, idx) in String(answer.options).split('|||')" :key="idx">
                   <div v-if="opt.trim()" class="opt-preview-item">
                     <input 
                       :type="answer.qType === 'MULTI' ? 'checkbox' : 'radio'" 
@@ -738,7 +748,7 @@ watch(activeTab, (newTab) => {
         <h3>已發佈題目清單</h3>
         <span class="count-tag">共 {{ questionsList?.length || 0 }} 題</span>
       </div>
-      <div v-for="q in (questionsList || [])" :key="q.id || Math.random()" class="q-item">
+      <div v-for="q in (questionsList || [])" :key="q.id" class="q-item">
         <div class="q-info">
           <span class="tag" :class="q.type">{{ q.type === 'PRACTICE' ? '練習' : '測驗' }}</span>
           <span class="tag-outline">{{ typeLabels[q.qType] || q.qType }}</span>
@@ -746,7 +756,7 @@ watch(activeTab, (newTab) => {
           
           <!-- 確保選項顯示為獨立列表，防止文字擠在一起 -->
           <div v-if="['SINGLE', 'MULTI', 'TF'].includes(q.qType) && q.options" class="options-list-preview">
-            <template v-for="(opt, idx) in String(q.options).split(',')" :key="idx">
+            <template v-for="(opt, idx) in String(q.options).split('|||')" :key="idx">
               <div v-if="opt.trim()" class="opt-preview-item">
                 <input 
                   :type="q.qType === 'MULTI' ? 'checkbox' : 'radio'" 

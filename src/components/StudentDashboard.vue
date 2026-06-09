@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 
 const props = defineProps(['courseCode', 'studentName'])
-const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbzyYV47bkxcA6ZOBxR0sXMIhfFR7sQWy3qeFKufzPki-DsfiXhZsWZ5OUo5_wLqmzyR/exec'
 
 const courseData = ref({ content: '單元一', questions: [] })
 const units = ref([{ title: '單元一', blocks: [] }]) // Initialize with a default unit
@@ -550,7 +550,7 @@ const checkPreviousSubmission = async () => {
           if (record) {
             if (q.qType === 'MULTI') {
               try {
-                q.studentAnswer = record.studentAnswer ? String(record.studentAnswer).split(',') : []
+                q.studentAnswer = record.studentAnswer ? String(record.studentAnswer).split('|||') : []
               } catch (e) {
                 q.studentAnswer = []
               }
@@ -602,7 +602,7 @@ const isOptionChosen = (opt, studentAnswer, qType) => {
 const isOptionCorrect = (opt, correctAnswer) => {
   if (!correctAnswer) return false;
   const val = opt.includes('.') ? opt.split('.')[0].trim().toLowerCase() : opt.trim().toLowerCase();
-  const correctList = String(correctAnswer).toLowerCase().split(',').map(s => s.trim());
+  const correctList = String(correctAnswer).toLowerCase().split('|||').map(s => s.trim());
   return correctList.includes(val);
 }
 
@@ -617,7 +617,7 @@ const checkPracticeAnswer = (item) => {
   };
 
   const studentAnsStr = Array.isArray(item.studentAnswer) ? 
-                        item.studentAnswer.filter(Boolean).map(normalize).sort().join(',') : 
+                        item.studentAnswer.filter(Boolean).map(normalize).sort().join('|||') : 
                         normalize(item.studentAnswer);
   // 練習題邏輯：本地檢查，不發送至後端
   if (item.type === 'PRACTICE') {
@@ -629,7 +629,7 @@ const checkPracticeAnswer = (item) => {
       item.isCorrect = possibleAnswers.includes(studentAnsStr);
     } else {
       // 選擇題與是非題邏輯：維持使用逗號分隔處理多選組合
-      const correctAnsStr = String(item.a || '').split(',').map(normalize).sort().join(',');
+      const correctAnsStr = String(item.a || '').split('|||').map(normalize).sort().join('|||');
       item.isCorrect = studentAnsStr === correctAnsStr;
     }
   }
@@ -649,7 +649,7 @@ const submitQuiz = async () => {
 
   const answers = quizQuestions.map(q => {
     const studentAnsStr = Array.isArray(q.studentAnswer) ? 
-                          q.studentAnswer.filter(Boolean).map(normalize).sort().join(',') : 
+                          q.studentAnswer.filter(Boolean).map(normalize).sort().join('|||') : 
                           normalize(q.studentAnswer)
     return {
       questionId: q.id,
@@ -879,7 +879,7 @@ onMounted(() => {
             </div>
             <!-- 單選題 -->
             <div v-else-if="item.qType === 'SINGLE'">
-              <div v-for="opt in String(item.options || '').split(',').filter(Boolean)" :key="opt" class="block-option-wrapper">
+              <div v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt" class="block-option-wrapper">
                 <label class="selection-block" :class="{ 
                   'selected': item.studentAnswer === opt,
                   'is-correct': item.isSubmitted && isOptionCorrect(opt, item.a),
@@ -890,7 +890,7 @@ onMounted(() => {
               </div>
             </div>
             <!-- 多選題 -->
-            <div v-else-if="item.qType === 'MULTI'">
+            <div v-else-if="item.qType === 'MULTI'"> 
               <div v-for="opt in String(item.options || '').split(',').filter(Boolean)" :key="opt" class="block-option-wrapper">
                 <label class="selection-block" :class="{ 
                   'selected': item.studentAnswer.includes(opt),
@@ -951,7 +951,7 @@ onMounted(() => {
               <p><strong>Q:</strong> {{ item.q }}</p>
               
               <div v-if="['SINGLE', 'MULTI', 'TF'].includes(item.qType)" class="options-list-preview">
-                <template v-for="opt in String(item.options || '').split(',').filter(Boolean)" :key="opt">
+                <template v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt">
                   <div class="opt-preview-item" 
                        :class="{ 
                          'is-correct': isOptionCorrect(opt, quizDetailedResults.find(r => r.questionId === item.id)?.correctAnswer || item.a),
@@ -986,7 +986,7 @@ onMounted(() => {
                   <input type="radio" v-model="item.studentAnswer" value="true" class="hidden-input"> True
                 </label>
               <label class="selection-block" :class="{ 'selected': item.studentAnswer === 'false' }">
-                  <input type="radio" v-model="item.studentAnswer" value="false" class="hidden-input"> False
+                  <input type="radio" v-model="item.studentAnswer" value="false" class="hidden-input"> False 
                 </label>
               </div>
               <div v-else-if="item.qType === 'SINGLE'">
@@ -997,7 +997,7 @@ onMounted(() => {
                 </div>
               </div>
               <div v-else-if="item.qType === 'MULTI'">
-                <div v-for="opt in String(item.options || '').split(',').filter(Boolean)" :key="opt">
+                <div v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt">
                   <label class="selection-block" :class="{ 'selected': item.studentAnswer.includes(opt.split('.')[0].trim().toLowerCase()) }">
                     <input type="checkbox" v-model="item.studentAnswer" :value="opt.split('.')[0].trim().toLowerCase()" class="hidden-input"> {{ opt }}
                   </label>
@@ -1096,7 +1096,7 @@ onMounted(() => {
               <p><strong>Q:</strong> {{ ans.q }}</p>
               
               <div v-if="['SINGLE', 'MULTI', 'TF'].includes(ans.qType) && ans.options" class="options-list-preview">
-                <template v-for="opt in String(ans.options).split(',').filter(Boolean)" :key="opt">
+                <template v-for="opt in String(ans.options).split('|||').filter(Boolean)" :key="opt">
                   <div class="opt-preview-item" 
                        :class="{ 
                          'is-correct': isOptionCorrect(opt, ans.correctAnswer),

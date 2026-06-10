@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed, nextTick } from 'vue'
 
 const props = defineProps(['courseCode'])
-const API_URL = 'https://script.google.com/macros/s/AKfycbzyYV47bkxcA6ZOBxR0sXMIhfFR7sQWy3qeFKufzPki-DsfiXhZsWZ5OUo5_wLqmzyR/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbzFSxDWsyE7Zx3fSGvJx-0UrqV10X_7fSx-xi2n-fQj13m9NZ1DUenUAhMI3Ib9DQHJ/exec'
 
 // 確保 units 與 activeUnitIndex 在最上方正確定義並初始化
 const units = ref([{ title: '單元一', blocks: [{ type: 'text', value: '', fontSize: '20px', align: 'left' }] }])
@@ -390,7 +390,8 @@ const uploadContent = async (type) => {
           a: finalAnswer,
           qType: q.qType,
           options: finalOptions,
-          points: q.points
+          points: q.points,
+          type: activeTab.value === 'quiz' ? 'QUIZ' : q.type
         }
       } else {
         payload.question = { 
@@ -544,9 +545,17 @@ const editQuestion = async (q) => {
 // 判斷該選項是否為正確答案
 const isOptionCorrect = (opt, correctAns) => {
   if (!correctAns) return false
-  const normalizedCorrect = String(correctAns).split('|||').map(s => s.trim().toLowerCase())
-  const normalizedOpt = String(opt).trim().toLowerCase()
-  return normalizedCorrect.includes(normalizedOpt)
+  const correctList = String(correctAns).split('|||').map(s => s.trim())
+  // 修正：加入標籤解析邏輯，使其能與試算表中的簡短答案（如 A）正確比對
+  const currentOpt = /^[a-zA-Z]\./.test(opt) ? opt.split('.')[0].trim() : opt.trim();
+
+  // 特別處理是非題：相容大小寫 (True/TRUE, False/FALSE)
+  const tfValues = ['true', 'false']
+  if (correctList.length === 1 && tfValues.includes(correctList[0].toLowerCase())) {
+    return currentOpt.toLowerCase() === correctList[0].toLowerCase()
+  }
+
+  return correctList.includes(currentOpt)
 }
 
 const cancelEdit = () => {
@@ -995,8 +1004,8 @@ watch(activeTab, (newTab) => {
           <p class="q-text">{{ q.q }}</p>
           
           <!-- 確保選項顯示為獨立列表，防止文字擠在一起 -->
-          <div v-if="['SINGLE', 'MULTI', 'TF'].includes(q.qType) && q.options" class="options-list-preview">
-            <template v-for="(opt, idx) in String(q.options).split('|||')" :key="idx">
+          <div v-if="['SINGLE', 'MULTI', 'TF'].includes(q.qType)" class="options-list-preview">
+            <template v-for="(opt, idx) in String(q.options || (q.qType === 'TF' ? 'True|||False' : '')).split('|||')" :key="idx">
               <div v-if="opt.trim()" class="opt-preview-item" :class="{ 'is-correct-answer': isOptionCorrect(opt, q.a) }">
                 <span class="opt-text">{{ opt.trim() }}</span>
               </div>
@@ -1378,10 +1387,10 @@ watch(activeTab, (newTab) => {
   width: 100%;
 }
 .opt-preview-item.is-correct-answer {
+  background: #e7f0ff;
   border-color: #0b4da0;
   border-width: 2px;
   border-style: solid;
-  background: #d6e7ff;
   font-weight: bold;
 }
 

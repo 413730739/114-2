@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed, nextTick } from 'vue'
 
 const props = defineProps(['courseCode'])
-const API_URL = 'https://script.google.com/macros/s/AKfycby3pSgIy6Gs5EK3SxWTg-o1SCzDHSVQORDGrDI03Xa7wqCQcTmxiLyF2leq1_SQ4ClM/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbzFSxDWsyE7Zx3fSGvJx-0UrqV10X_7fSx-xi2n-fQj13m9NZ1DUenUAhMI3Ib9DQHJ/exec'
 
 // 確保 units 與 activeUnitIndex 在最上方正確定義並初始化
 const units = ref([{ title: '單元一', blocks: [{ type: 'text', value: '' }] }])
@@ -33,7 +33,7 @@ const previewBlocks = computed(() => {
       }
 
         if (block.type === 'embed' && rawValue.includes('drive.google.com/open?id=')) {
-          const id = url.split('id=')[1].split('&')[0];
+          const id = rawValue.split('id=')[1].split('&')[0];
           processedUrl = `https://drive.google.com/file/d/${id}/preview`;
         } else if (block.type === 'youtube') {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -240,7 +240,7 @@ const uploadContent = async (type) => {
           qType: q.qType,
           options: finalOptions,
           points: q.points,
-          type: q.type // 確保保留原始的練習或測驗分類
+          type: activeTab.value === 'quiz' ? 'QUIZ' : q.type // 強制根據當前頁籤更新分類
         }
       } else {
         payload.question = { 
@@ -376,7 +376,16 @@ const editQuestion = async (q) => {
 const isOptionCorrect = (opt, correctAns) => {
   if (!correctAns) return false
   const correctList = String(correctAns).split('|||').map(s => s.trim())
-  return correctList.includes(opt.trim())
+  // 修正：同步標籤解析邏輯
+  const currentOpt = /^[a-zA-Z]\./.test(opt) ? opt.split('.')[0].trim() : opt.trim();
+
+  // 特別處理是非題：相容大小寫
+  const tfValues = ['true', 'false']
+  if (correctList.length === 1 && tfValues.includes(correctList[0].toLowerCase())) {
+    return currentOpt.toLowerCase() === correctList[0].toLowerCase()
+  }
+
+  return correctList.includes(currentOpt)
 }
 
 const cancelEdit = () => {
@@ -716,7 +725,7 @@ watch(activeTab, (newTab) => {
               
               <div v-if="['SINGLE', 'MULTI', 'TF'].includes(answer.qType) && answer.options" class="options-list-preview">
                 <template v-for="(opt, idx) in String(answer.options).split('|||')" :key="idx">
-                  <div v-if="opt.trim()" class="opt-preview-item">
+                  <div v-if="opt.trim()" class="opt-preview-item" :class="{ 'is-correct-answer': isOptionCorrect(opt, answer.correctAnswer) }">
                     <input 
                       :type="answer.qType === 'MULTI' ? 'checkbox' : 'radio'" 
                       :checked="isOptionCorrect(opt, answer.studentAnswer)" 
@@ -746,18 +755,18 @@ watch(activeTab, (newTab) => {
     <section v-if="activeTab === 'quiz'" class="questions-list">
       <div class="list-header">
         <h3>已發佈題目清單</h3>
-        <span class="count-tag">共 {{ questionsList?.length || 0 }} 題</span>
+        <span class="count-tag">共 {{ questionsList.filter(q => q.type === 'QUIZ').length || 0 }} 題</span>
       </div>
-      <div v-for="q in (questionsList || [])" :key="q.id" class="q-item">
+      <div v-for="q in questionsList.filter(q => q.type === 'QUIZ')" :key="q.id" class="q-item">
         <div class="q-info">
           <span class="tag" :class="q.type">{{ q.type === 'PRACTICE' ? '練習' : '測驗' }}</span>
           <span class="tag-outline">{{ typeLabels[q.qType] || q.qType }}</span>
           <p class="q-text">{{ q.q }}</p>
           
           <!-- 確保選項顯示為獨立列表，防止文字擠在一起 -->
-          <div v-if="['SINGLE', 'MULTI', 'TF'].includes(q.qType) && q.options" class="options-list-preview">
-            <template v-for="(opt, idx) in String(q.options).split('|||')" :key="idx">
-              <div v-if="opt.trim()" class="opt-preview-item">
+          <div v-if="['SINGLE', 'MULTI', 'TF'].includes(q.qType)" class="options-list-preview">
+            <template v-for="(opt, idx) in String(q.options || (q.qType === 'TF' ? 'True|||False' : '')).split('|||')" :key="idx">
+              <div v-if="opt.trim()" class="opt-preview-item" :class="{ 'is-correct-answer': isOptionCorrect(opt, q.a) }">
                 <input 
                   :type="q.qType === 'MULTI' ? 'checkbox' : 'radio'" 
                   :checked="isOptionCorrect(opt, q.a)" 
@@ -995,7 +1004,12 @@ textarea:focus, .styled-input:focus {
   background: #fff; cursor: pointer; font-weight: bold; transition: 0.2s;
 }
 .tf-options button:hover { transform: scale(1.05); }
-.tf-options button.selected { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.tf-options button.selected { 
+  background: #e7f0ff; 
+  color: var(--text-main); 
+  border-color: #0b4da0; 
+  border-width: 2px;
+}
 
 .styled-input {
   width: 100%;
@@ -1067,13 +1081,15 @@ textarea:focus, .styled-input:focus {
 .opt-preview-item.is-chosen.is-correct-answer,
 .opt-preview-item.is-correct-answer.is-chosen {
   background: #e7f0ff;
-  border-color: var(--primary-color);
-  font-weight: 700;
+  border-color: #0b4da0;
+  border-width: 2px;
+  font-weight: bold;
 }
 .opt-preview-item.is-correct-answer {
   background: #e7f0ff;
-  border-color: var(--primary-color);
-  font-weight: 700;
+  border-color: #0b4da0;
+  border-width: 2px;
+  font-weight: bold;
 }
 .opt-preview-item.is-chosen {
   background: #e7f0ff;

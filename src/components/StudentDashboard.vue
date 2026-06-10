@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 
 const props = defineProps(['courseCode', 'studentName'])
-const API_URL = 'https://script.google.com/macros/s/AKfycbzyYV47bkxcA6ZOBxR0sXMIhfFR7sQWy3qeFKufzPki-DsfiXhZsWZ5OUo5_wLqmzyR/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbzFSxDWsyE7Zx3fSGvJx-0UrqV10X_7fSx-xi2n-fQj13m9NZ1DUenUAhMI3Ib9DQHJ/exec'
 
 const courseData = ref({ content: '單元一', questions: [] })
 const units = ref([{ title: '單元一', blocks: [] }]) // Initialize with a default unit
@@ -15,6 +15,7 @@ const showPracticeNotice = ref(false)
 const fetchError = ref(false)
 
 const quizSubmitted = ref(false) // 追蹤測驗是否已提交
+const isNewAttempt = ref(false) // 追蹤學生是否選擇重新挑戰（不顯示舊紀錄）
 const quizScore = ref(null) // 儲存測驗分數
 const quizTotalPossible = ref(0) // 儲存測驗總分
 const quizDetailedResults = ref([]) // 儲存測驗詳細結果 (每題對錯)
@@ -66,6 +67,7 @@ const loadVocabs = async (category) => {
         pool = lines
           .filter(row => row.trim().length > 0) // 移除空行
           .slice(1) // 跳過標題列
+            // 自動支援逗號或分號分隔，並移除可能的引號包裹
           .map(row => {
             // 自動支援逗號或分號分隔，並移除可能的引號包裹
             const cols = row.split(/[,;]/).map(c => c.replace(/^["']|["']$/g, '').trim())
@@ -421,7 +423,7 @@ const initPractice = () => {
   practiceQuestions.value = selected.map(q => ({
     ...q,
     // 根據題型初始化答案格式：多選為陣列，其餘為字串
-    studentAnswer: (q.qType === 'MULTI' || (typeof q.a === 'string' && q.a.includes(','))) ? [] : '',
+    studentAnswer: (q.qType === 'MULTI' || (typeof q.a === 'string' && q.a.includes('|||'))) ? [] : '',
     type: 'PRACTICE', // 補充 type 標記
     isSubmitted: false, // 是否已檢查答案
     isCorrect: null,    // 對錯狀態
@@ -432,7 +434,7 @@ const initPractice = () => {
 // 重置當前所有練習題的作答狀態（不更換題目）
 const resetPractice = () => {
   practiceQuestions.value.forEach(item => {
-    item.studentAnswer = (item.qType === 'MULTI' || (typeof item.a === 'string' && item.a.includes(','))) ? [] : ''
+    item.studentAnswer = (item.qType === 'MULTI' || (typeof item.a === 'string' && item.a.includes('|||'))) ? [] : ''
     item.isSubmitted = false
     item.isCorrect = null
   })
@@ -537,34 +539,32 @@ const checkPreviousSubmission = async () => {
     if (result.status === 'success' && result.submissions && result.submissions.length > 0) {
       allSubmissions.value = result.submissions;
 
-      // 學生端只顯示最新一次的作答紀錄
-      const latestSubmission = result.submissions[0]; 
+      // 如果不是正在進行新的挑戰，則自動載入最新的作答紀錄
+      if (!isNewAttempt.value) {
+        const latestSubmission = result.submissions[0]; 
+        quizDetailedResults.value = latestSubmission.studentAnswers
 
-      quizDetailedResults.value = latestSubmission.studentAnswers
-
-      // 安全檢查：確保 courseData.value.questions 已存在
-      if (courseData.value && courseData.value.questions) {
-        // 將作答紀錄同步回課程題目物件，確保 UI (radio/checkbox) 顯示正確
-        courseData.value.questions.forEach(q => {
-          const record = latestSubmission.studentAnswers.find(r => r.questionId === q.id)
-          if (record) {
-            if (q.qType === 'MULTI') {
-              try {
-                q.studentAnswer = record.studentAnswer ? String(record.studentAnswer).split('|||') : []
-              } catch (e) {
-                q.studentAnswer = []
+        if (courseData.value && courseData.value.questions) {
+          courseData.value.questions.forEach(q => {
+            const record = latestSubmission.studentAnswers.find(r => r.questionId === q.id)
+            if (record) {
+              if (q.qType === 'MULTI') {
+                try {
+                  q.studentAnswer = record.studentAnswer ? String(record.studentAnswer).split('|||') : []
+                } catch (e) {
+                  q.studentAnswer = []
+                }
+              } else {
+                q.studentAnswer = record.studentAnswer
               }
-            } else {
-              q.studentAnswer = record.studentAnswer
             }
-          }
-        })
-      }
+          })
+        }
 
-      // 設定分數與總分 (優先使用後端儲存的值，若無則從詳細作答中重新計算)
-      quizScore.value = latestSubmission.score !== undefined ? latestSubmission.score : 0
-      quizTotalPossible.value = latestSubmission.total !== undefined ? latestSubmission.total : 0
-      quizSubmitted.value = true
+        quizScore.value = latestSubmission.score !== undefined ? latestSubmission.score : 0
+        quizTotalPossible.value = latestSubmission.total !== undefined ? latestSubmission.total : 0
+        quizSubmitted.value = true
+      }
     }
   } catch (err) {
     console.log('尚未有作答紀錄或檢查失敗', err)
@@ -590,19 +590,28 @@ const openTranslator = () => {
 // 判斷該選項是否為學生當時所選
 const isOptionChosen = (opt, studentAnswer, qType) => {
   if (!studentAnswer) return false;
-  const val = opt.includes('.') ? opt.split('.')[0].trim().toLowerCase() : opt.trim().toLowerCase();
+  // 修正：僅當選項符合標籤格式（如 A.）時才擷取標籤，避免誤判包含點號的句子
+  const val = /^[a-zA-Z]\./.test(opt) ? opt.split('.')[0].trim() : opt.trim();
   if (qType === 'MULTI' || Array.isArray(studentAnswer)) {
-    const list = Array.isArray(studentAnswer) ? studentAnswer : String(studentAnswer).toLowerCase().split(',').map(s => s.trim());
+    const list = Array.isArray(studentAnswer) ? studentAnswer : String(studentAnswer).split('|||').map(s => s.trim());
     return list.includes(val);
   }
-  return String(studentAnswer).toLowerCase().trim() === val;
+  return String(studentAnswer).trim() === val;
 }
 
 // 判斷該選項是否為正確答案
 const isOptionCorrect = (opt, correctAnswer) => {
   if (!correctAnswer) return false;
-  const val = opt.includes('.') ? opt.split('.')[0].trim().toLowerCase() : opt.trim().toLowerCase();
-  const correctList = String(correctAnswer).toLowerCase().split('|||').map(s => s.trim());
+  // 修正：採用與提交時一致的標籤識別邏輯
+  const val = /^[a-zA-Z]\./.test(opt) ? opt.split('.')[0].trim() : opt.trim();
+  const correctList = String(correctAnswer).split('|||').map(s => s.trim());
+  
+  // 特別處理是非題：相容大小寫
+  const tfValues = ['true', 'false']
+  if (correctList.length === 1 && tfValues.includes(correctList[0].toLowerCase())) {
+    return val.toLowerCase() === correctList[0].toLowerCase()
+  }
+
   return correctList.includes(val);
 }
 
@@ -610,10 +619,10 @@ const checkPracticeAnswer = (item) => {
   // 標準化答案處理函式：將 "A. Apple" 轉換為 "A" 進行比對
   const normalize = (val) => {
     if (!val) return '';
-    // 轉為小寫並去除前後空白，達成「忽略大小寫」與「忽略空格」
-    const s = val.toString().toLowerCase().trim();
-    // 處理選擇題標籤格式 (如 "a. apple" -> "a")，正規表達式改用小寫 a-z
-    return /^[a-z]\./.test(s) ? s.split('.')[0].trim() : s;
+    // 僅去除前後空白，保留原始大小寫
+    const s = val.toString().trim();
+    // 處理選擇題標籤格式 (如 "A. Apple" -> "A")，支援大小寫 a-z 與 A-Z
+    return /^[a-zA-Z]\./.test(s) ? s.split('.')[0].trim() : s;
   };
 
   const studentAnsStr = Array.isArray(item.studentAnswer) ? 
@@ -628,7 +637,7 @@ const checkPracticeAnswer = (item) => {
       const possibleAnswers = String(item.a || '').split('/').map(normalize);
       item.isCorrect = possibleAnswers.includes(studentAnsStr);
     } else {
-      // 選擇題與是非題邏輯：維持使用逗號分隔處理多選組合
+      // 選擇題與是非題邏輯：使用 ||| 分隔處理多選組合
       const correctAnsStr = String(item.a || '').split('|||').map(normalize).sort().join('|||');
       item.isCorrect = studentAnsStr === correctAnsStr;
     }
@@ -643,8 +652,8 @@ const submitQuiz = async () => {
   // 標準化處理
   const normalize = (val) => {
     if (!val) return ''
-    const s = val.toString().toLowerCase().trim()
-    return /^[a-z]\./.test(s) ? s.split('.')[0].trim() : s
+    const s = val.toString().trim()
+    return /^[a-zA-Z]\./.test(s) ? s.split('.')[0].trim() : s
   }
 
   const answers = quizQuestions.map(q => {
@@ -671,6 +680,7 @@ const submitQuiz = async () => {
     })
     const result = await response.json()
     if (result.status === 'success') {
+      isNewAttempt.value = false; // 提交成功，結束新挑戰狀態
       quizScore.value = result.score
       quizTotalPossible.value = result.total
       quizDetailedResults.value = result.detailedResults
@@ -688,9 +698,8 @@ const submitQuiz = async () => {
 
 // 重新挑戰測驗 (清空狀態與答案)
 const retakeQuiz = () => {
-  if (!confirm('確定要重新挑戰嗎？您之前的測驗紀錄仍會保留在系統中。')) return
-  
   quizSubmitted.value = false
+  isNewAttempt.value = true // 標記為新挑戰，防止 checkPreviousSubmission 抓回舊資料
   quizScore.value = null
   quizDetailedResults.value = []
   
@@ -796,7 +805,7 @@ onMounted(() => {
       <section v-if="activeTab === 'vocab'" class="vocab-learning-area">
         <div class="vocab-header-panel">
           <div class="vocab-categories">
-            <button v-for="(label, cat) in {TEACHER:'教師發佈', K:'幼稚園', E:'國小', J:'國中', S:'高中', U:'大學'}" 
+            <button v-for="(label, cat) in {TEACHER:'[教師發布]', K:'[幼稚園]', E:'[國小]', J:'[國中]', S:'[高中]', U:'[大學]'}" 
               :key="cat" :class="{ active: currentVocabCategory === cat }" @click="loadVocabs(cat)">
               {{ label }}
             </button>
@@ -891,7 +900,7 @@ onMounted(() => {
             </div>
             <!-- 多選題 -->
             <div v-else-if="item.qType === 'MULTI'"> 
-              <div v-for="opt in String(item.options || '').split(',').filter(Boolean)" :key="opt" class="block-option-wrapper">
+              <div v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt" class="block-option-wrapper">
                 <label class="selection-block" :class="{ 
                   'selected': item.studentAnswer.includes(opt),
                   'is-correct': item.isSubmitted && isOptionCorrect(opt, item.a),
@@ -951,7 +960,7 @@ onMounted(() => {
               <p><strong>Q:</strong> {{ item.q }}</p>
               
               <div v-if="['SINGLE', 'MULTI', 'TF'].includes(item.qType)" class="options-list-preview">
-                <template v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt">
+                <template v-for="opt in String(item.options || (item.qType === 'TF' ? 'True|||False' : '')).split('|||').filter(Boolean)" :key="opt">
                   <div class="opt-preview-item" 
                        :class="{ 
                          'is-correct': isOptionCorrect(opt, quizDetailedResults.find(r => r.questionId === item.id)?.correctAnswer || item.a),
@@ -982,24 +991,24 @@ onMounted(() => {
             <p><strong>Q:</strong> {{ item.q }}</p>
             <div class="answer-wrapper">
               <div v-if="item.qType === 'TF'">
-              <label class="selection-block" :class="{ 'selected': item.studentAnswer === 'true' }">
-                  <input type="radio" v-model="item.studentAnswer" value="true" class="hidden-input"> True
+              <label class="selection-block" :class="{ 'selected': item.studentAnswer === 'True' }">
+                  <input type="radio" v-model="item.studentAnswer" value="True" class="hidden-input"> True
                 </label>
-              <label class="selection-block" :class="{ 'selected': item.studentAnswer === 'false' }">
-                  <input type="radio" v-model="item.studentAnswer" value="false" class="hidden-input"> False 
+              <label class="selection-block" :class="{ 'selected': item.studentAnswer === 'False' }">
+                  <input type="radio" v-model="item.studentAnswer" value="False" class="hidden-input"> False 
                 </label>
               </div>
               <div v-else-if="item.qType === 'SINGLE'">
-                <div v-for="opt in String(item.options || '').split(',').filter(Boolean)" :key="opt">
-                  <label class="selection-block" :class="{ 'selected': item.studentAnswer === opt.split('.')[0].trim().toLowerCase() }">
-                    <input type="radio" v-model="item.studentAnswer" :value="opt.split('.')[0].trim().toLowerCase()" class="hidden-input"> {{ opt }}
+                <div v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt">
+                  <label class="selection-block" :class="{ 'selected': item.studentAnswer === opt }">
+                    <input type="radio" v-model="item.studentAnswer" :value="opt" class="hidden-input"> {{ opt }}
                   </label>
                 </div>
               </div>
               <div v-else-if="item.qType === 'MULTI'">
                 <div v-for="opt in String(item.options || '').split('|||').filter(Boolean)" :key="opt">
-                  <label class="selection-block" :class="{ 'selected': item.studentAnswer.includes(opt.split('.')[0].trim().toLowerCase()) }">
-                    <input type="checkbox" v-model="item.studentAnswer" :value="opt.split('.')[0].trim().toLowerCase()" class="hidden-input"> {{ opt }}
+                  <label class="selection-block" :class="{ 'selected': item.studentAnswer.includes(opt) }">
+                    <input type="checkbox" v-model="item.studentAnswer" :value="opt" class="hidden-input"> {{ opt }}
                   </label>
                 </div>
               </div>
@@ -1095,8 +1104,8 @@ onMounted(() => {
               <div class="q-type-badge">{{ typeLabels[ans.qType] || ans.qType }}</div>
               <p><strong>Q:</strong> {{ ans.q }}</p>
               
-              <div v-if="['SINGLE', 'MULTI', 'TF'].includes(ans.qType) && ans.options" class="options-list-preview">
-                <template v-for="opt in String(ans.options).split('|||').filter(Boolean)" :key="opt">
+              <div v-if="['SINGLE', 'MULTI', 'TF'].includes(ans.qType)" class="options-list-preview">
+                <template v-for="opt in String(ans.options || (ans.qType === 'TF' ? 'True|||False' : '')).split('|||').filter(Boolean)" :key="opt">
                   <div class="opt-preview-item" 
                        :class="{ 
                          'is-correct': isOptionCorrect(opt, ans.correctAnswer),
@@ -1481,8 +1490,9 @@ onMounted(() => {
 }
 .selection-block.is-correct {
   background: #e7f0ff;
-  border-color: var(--primary-color);
+  border-color: #0b4da0;
   border-width: 2px;
+  font-weight: bold;
 }
 .selection-block.is-wrong-selection {
   background: var(--surface);
@@ -1566,7 +1576,7 @@ onMounted(() => {
 }
 .opt-preview-item.is-correct {
   background: #e7f0ff;
-  border-color: var(--primary-color);
+  border-color: #0b4da0;
   border-width: 2px;
   font-weight: bold;
 }

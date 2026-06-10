@@ -805,7 +805,7 @@ onMounted(() => {
       <section v-if="activeTab === 'vocab'" class="vocab-learning-area">
         <div class="vocab-header-panel">
           <div class="vocab-categories">
-            <button v-for="(label, cat) in {TEACHER:'[教師發布]', K:'[幼稚園]', E:'[國小]', J:'[國中]', S:'[高中]', U:'[大學]'}" 
+            <button v-for="(label, cat) in {TEACHER:'教師發布', K:'幼稚園', E:'國小', J:'國中', S:'高中', U:'大學'}" 
               :key="cat" :class="{ active: currentVocabCategory === cat }" @click="loadVocabs(cat)">
               {{ label }}
             </button>
@@ -1169,6 +1169,7 @@ onMounted(() => {
   gap: 10px;
   margin-bottom: 25px;
   padding: 0;
+  flex-wrap: wrap;
 }
 .tab-menu button {
   flex: 1;
@@ -1179,6 +1180,7 @@ onMounted(() => {
   border-radius: var(--border-radius-sm);
   font-weight: 600;
   color: var(--text-muted);
+  min-width: 100px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.03);
   transition: var(--transition);
 }
@@ -1365,6 +1367,11 @@ onMounted(() => {
   .content-box { padding: 10px; } /* 減少內容框邊距，給 PDF 更多空間 */
   .embed-container iframe {
     height: 450px; /* 手機端稍微降低高度以符合螢幕比例 */
+  }
+  .history-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 }
 
@@ -1732,7 +1739,11 @@ onMounted(() => {
 .v-hint { font-size: 0.7em; color: var(--text-muted); margin-top: 10px; }
 
 @media (max-width: 992px) { .vocab-card-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 600px) { .vocab-card-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { 
+  .vocab-card-grid { grid-template-columns: 1fr; } /* 手機版改為一欄避免卡片太窄導致內容溢出 */
+  .flip-card { height: 150px; } 
+  .v-main-word { font-size: 1.2em; }
+}
 
 /* 練習題提示彈窗樣式 */
 .modal-overlay {

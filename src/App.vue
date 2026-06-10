@@ -97,6 +97,7 @@ html, body {
   background: linear-gradient(135deg, #f0efeb 0%, #d6e2e9 50%, #99c1de 100%) !important;
   background-attachment: fixed;
   color: var(--text-main);
+  overflow-x: hidden;
 }
 
 *, *::before, *::after {
@@ -117,6 +118,7 @@ html, body {
 .app-wrapper {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
+  width: 100%;
 }
 
 .auth-centered {
@@ -205,5 +207,11 @@ html, body {
 @media (max-width: 768px) {
   .nav-bar { padding: 1rem 3%; }
   .main-content { padding: 0 3% 2rem; }
+  .nav-bar {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+    border-radius: 0;
+  }
 }
 </style>

@@ -1071,7 +1071,13 @@ watch(activeTab, (newTab) => {
   border-radius: 0;
   min-height: 100vh;
 }
-.tab-menu { display: flex; gap: 10px; margin-bottom: 25px; padding: 0; }
+.tab-menu { 
+  display: flex; 
+  gap: 10px; 
+  margin-bottom: 25px; 
+  padding: 0; 
+  flex-wrap: wrap; 
+}
 .tab-menu button {
   flex: 1;
   padding: 14px;
@@ -1423,6 +1429,25 @@ watch(activeTab, (newTab) => {
   
   .tab-menu { gap: 8px; }
   .tab-menu button { padding: 12px 8px; font-size: 0.85em; }
+
+  /* 修正單字批次輸入重疊問題 */
+  .bulk-vocab-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 15px;
+    background: white;
+    border-radius: 12px;
+    position: relative;
+  }
+  .bulk-vocab-row .btn-remove {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+  }
+  .grade-item {
+    grid-template-columns: 1.5fr 1fr 1fr;
+  }
+  .grade-item span:nth-child(3) { display: none; } /* 手機版隱藏提交時間避免擁擠 */
 }
 
 /* 新增的成績頁籤樣式 */
@@ -1649,15 +1674,33 @@ watch(activeTab, (newTab) => {
 .vocab-form .form-row { display: flex; gap: 10px; margin-bottom: 20px; }
 .pos-select { flex: 0 0 120px; }
 .add-vocab-btn { background: var(--primary-color); color: white; border: none; border-radius: 12px; padding: 0 25px; cursor: pointer; font-weight: bold; }
-.vocab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 15px; }
+.vocab-grid { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
+  gap: 15px; 
+  margin-top: 15px; 
+}
 .vocab-item-admin { 
-  background: #fff; padding: 10px; border-radius: var(--border-radius-sm); border: 1px solid var(--border);
-  display: flex; align-items: center; gap: 8px; position: relative;
+  background: #fff; 
+  padding: 15px; 
+  border-radius: var(--border-radius-sm); 
+  border: 1px solid var(--border);
+  display: flex; 
+  flex-direction: column; /* 改為垂直排列避免橫向擠壓 */
+  align-items: flex-start;
+  gap: 8px; 
+  position: relative;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
 }
 .vocab-item-admin .v-word { font-weight: bold; color: #1f3f6a; }
 .vocab-item-admin .v-pos { font-size: 0.8em; color: var(--text-muted); }
-.mini-del-btn { 
-  position: absolute; right: 5px; top: 5px; background: none; border: none; 
-  color: #ef4444; cursor: pointer; font-size: 1.2em; 
+.vocab-item-admin .v-mean { color: var(--text-main); word-break: break-all; }
+.vocab-item-admin .vocab-actions { 
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 10px;
 }
 </style>
